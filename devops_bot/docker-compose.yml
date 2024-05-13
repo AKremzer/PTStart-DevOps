@@ -33,7 +33,7 @@ services:
       - "-c"
       - "log_filename=pg.log"
       - "-c"
-      - "log_file_mode=0640"
+      - "log_file_mode=0664"
       - "-c"
       - "max_wal_senders=10"
       - "-c"
