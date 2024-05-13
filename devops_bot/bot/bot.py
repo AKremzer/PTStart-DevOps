@@ -8,12 +8,12 @@ from pathlib import Path
 from dotenv import load_dotenv
 import psycopg2
 
+load_dotenv()
 TOKEN = os.getenv('TOKEN')
 connection = None
 
 # dotenv_path = Path('D:\\PT-Start\\практика1\\bot\\.env')
 # load_dotenv(dotenv_path=dotenv_path)
-load_dotenv()
 
 logging.basicConfig(
     filename='logfile.txt', format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
