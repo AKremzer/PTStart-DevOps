@@ -1,0 +1,174 @@
+- hosts: all
+  handlers:
+    - name: Restart PostgreSQL
+      service:
+        name: postgresql
+        state: restarted
+    
+    - name: Start PostgreSQL
+      service:
+        name: postgresql
+        state: started
+
+- hosts: db_host
+  vars_files:
+    - ./vars.yml
+  tasks:
+    - name: Install PostgreSQL
+      become: yes
+      apt:
+        pkg:
+          - postgresql
+          - postgresql-contrib
+          - python3-psycopg2
+        state: latest
+        update_cache: true
+      notify: Start PostgreSQL
+
+    - name: Create DB
+      become: yes
+      become_user: postgres
+      postgresql_db:
+        name: "{{ DB_DATABASE }}"
+        state: present
+      register: db_created
+
+    - name: Change postgres password
+      become: yes
+      become_user: postgres
+      postgresql_user:
+        db: "{{ DB_DATABASE }}"
+        name: postgres
+        password: "{{ DB_PASSWORD }}"
+
+    - name: Allow remote auth
+      become: yes
+      become_user: postgres
+      postgresql_pg_hba:
+        dest: /etc/postgresql/14/main/pg_hba.conf
+        contype: "host"
+        databases: "all"
+        users: "all"
+        source: "0.0.0.0/0"
+        method: "md5"
+        create: true
+
+    - name: Allow remote replication
+      become: yes
+      become_user: postgres
+      postgresql_pg_hba:
+        dest: /etc/postgresql/14/main/pg_hba.conf
+        contype: "host"
+        databases: "replication"
+        users: "all"
+        source: "0.0.0.0/0"
+        method: "md5"
+        create: true
+
+    - name: Set postgresql.conf parameters
+      become: yes
+      become_user: postgres
+      community.postgresql.postgresql_set:
+        name: "{{ item.key }}"
+        value: "{{ item.value }}"
+      with_dict:
+        max_connections: '100'
+        listen_addresses: '*'
+        log_replication_commands: 'on'
+        unix_socket_directories: '/var/run/postgresql'
+        logging_collector: 'on'
+        log_directory: '/tmp/'
+        log_filename: 'pg.log'
+        log_file_mode: '0664'
+        wal_level: 'replica'
+        max_wal_senders: '10'
+        wal_log_hints: 'on'
+        password_encryption: 'scram-sha-256'
+      notify: Restart PostgreSQL
+
+    - name: Copy init.sql to DB_HOST
+      copy:
+        src: "init.sql"
+        dest: "~/init.sql"
+
+    - name: Read init.sql into a variable
+      slurp:
+        src: init.sql
+      register: init
+    
+    - name: Initialize DB from init.sql
+      become: yes
+      become_user: postgres
+      postgresql_query:
+        db: "{{ DB_DATABASE }}"
+        query: "{{ init.content | b64decode }}"
+        login_user: postgres
+        login_password: "{{ DB_PASSWORD }}"
+      when: db_created.changed
+
+- hosts: db_repl_host
+  vars_files:
+    - vars.yml
+  tasks:
+    - name: Install PostgreSQL
+      become: yes
+      apt:
+        pkg:
+          - postgresql
+          - postgresql-contrib
+          - python3-psycopg2
+        state: latest
+        update_cache: true
+      notify: Start PostgreSQL
+
+    - name: Clear replication directory
+      become: yes
+      ansible.builtin.file:
+        state: absent
+        path: /var/lib/postgresql/data
+
+    - name: Start replication process
+      become: yes
+      become_user: postgres
+      environment:
+        PGUSER: postgres
+        PGPASSWORD: "{{ DB_PASSWORD }}"
+      shell: pg_basebackup --pgdata=/var/lib/postgresql/data -R --slot=replication_slot --host="{{ DB_HOST }}" --port="{{ DB_PORT }}"
+
+- hosts: bot_host
+  tasks:
+    - name: Install Git & pip3
+      become: yes
+      apt:
+        pkg:
+          - python3-pip
+          - git
+          - libpq-dev
+    
+    - name: Create project catalog
+      become: yes
+      file:
+        path: /home/ansible/bot/
+        state: directory
+
+    - name: Clone repo
+      become: yes
+      git:
+        repo: "https://github.com/AKremzer/PTStart-DevOps/"
+        dest: "/home/ansible/bot/"
+        version: docker
+
+    - name: Install Python modules
+      become: yes
+      pip:
+        requirements: "/home/ansible/bot/devops_bot/bot/requirements.txt"
+
+    - name: Copy .env file to BOT_HOST
+      become: yes
+      copy:
+        src: ".env"
+        dest: "/home/ansible/bot/devops_bot/bot/.env"
+
+    - name: Start bot.py
+      become: yes
+      shell: python3 /home/ansible/bot/devops_bot/bot/bot.py
