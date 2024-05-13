@@ -1,0 +1,5 @@
+FROM postgres:15.0
+
+ARG DB_REPL_PORT
+
+EXPOSE $DB_REPL_PORT
