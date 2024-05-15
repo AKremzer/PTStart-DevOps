@@ -1,15 +1,3 @@
-- hosts: all
-  handlers:
-    - name: Restart PostgreSQL
-      service:
-        name: postgresql
-        state: restarted
-    
-    - name: Start PostgreSQL
-      service:
-        name: postgresql
-        state: started
-
 - hosts: db_host
   vars_files:
     - ./vars.yml
@@ -22,8 +10,12 @@
           - postgresql-contrib
           - python3-psycopg2
         state: latest
-        update_cache: true
-      notify: Start PostgreSQL
+
+    - name: Start PostgreSQL
+      become: yes
+      service:
+        name: postgresql
+        state: started
 
     - name: Create DB
       become: yes
@@ -84,7 +76,12 @@
         max_wal_senders: '10'
         wal_log_hints: 'on'
         password_encryption: 'scram-sha-256'
-      notify: Restart PostgreSQL
+
+    - name: Restart PostgreSQL
+      become: yes
+      service:
+        name: postgresql
+        state: restarted
 
     - name: Copy init.sql to DB_HOST
       copy:
@@ -118,8 +115,12 @@
           - postgresql-contrib
           - python3-psycopg2
         state: latest
-        update_cache: true
-      notify: Start PostgreSQL
+
+    - name: Start PostgreSQL
+      become: yes
+      service:
+        name: postgresql
+        state: started
 
     - name: Clear replication directory
       become: yes
