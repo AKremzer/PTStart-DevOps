@@ -3,10 +3,6 @@ version: '3.9'
 networks:
   mynetwork:
     driver: bridge
-    ipam:
-      driver: default
-      config:
-        - subnet: ${DOCKER_NET}
 
 services:
   db:
@@ -42,7 +38,8 @@ services:
       - "wal_log_hints=on"
       - "-c"
       - "password_encryption=scram-sha-256"
-    container_name: db-image
+    container_name: db
+    hostname: db
     environment:
       - POSTGRES_PASSWORD=${DB_PASSWORD}
       - POSTGRES_DB=${DB_DATABASE}
@@ -51,7 +48,6 @@ services:
       - ${DB_PORT}:5432
     networks:
       mynetwork:
-        ipv4_address: ${DB_HOST}
     env_file:
       - .env
     volumes:
@@ -63,7 +59,8 @@ services:
       context: ./db_repl
       args:
         - DB_REPL_PORT=${DB_REPL_PORT}
-    container_name: db-repl-image
+    container_name: db_repl
+    hostname: db_repl
     environment:
       - POSTGRES_USER=${DB_REPL_USER}
       - POSTGRES_PASSWORD=${DB_REPL_PASSWORD}
@@ -82,7 +79,6 @@ services:
       "
     networks:
       mynetwork:
-        ipv4_address: ${DB_REPL_HOST}
     ports:
       - ${DB_REPL_PORT}:5432
     env_file:
@@ -92,7 +88,8 @@ services:
   bot:
     build:
       context: ./bot
-    container_name: bot-image
+    container_name: bot
+    hostname: bot
     networks:
       mynetwork:
     env_file:
