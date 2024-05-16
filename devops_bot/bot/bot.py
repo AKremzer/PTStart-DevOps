@@ -285,7 +285,7 @@ def get_apt_list (update: Update, context):
 
 def get_services (update: Update, context):
     client = sshConnect()
-    stdin, stdout, stderr = client.exec_command('ps')
+    stdin, stdout, stderr = client.exec_command('systemctl list-units --state running --type service')
     
     data_arr = stdout.readlines() + stderr.readlines()
     data = "".join(str(element) for element in data_arr)
